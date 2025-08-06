@@ -1,13 +1,10 @@
 // Agent服务
-import { ChatDeepSeek } from '@langchain/deepseek';
 import { ChatZhipuAI } from '@langchain/community/chat_models/zhipuai';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { Runnable, RunnableSequence } from '@langchain/core/runnables';
 import { BaseMessage, BaseMessageChunk } from '@langchain/core/messages';
 import { Document } from '@langchain/core/documents';
-import { ReadableStream } from 'stream/web';
-import { Readable } from 'stream';
 
 import { getVectorStore, initializeVectorStore } from './vectorStore';
 import { config } from '../config';
@@ -77,13 +74,13 @@ export async function initializeAgent() {
     const promptTemplate = PromptTemplate.fromTemplate(
       `你是一个智能助手，需要根据提供的上下文和用户问题给出准确的回答。
 
-上下文信息:
-{context}
+        上下文信息:
+        {context}
 
-用户问题:
-{input}
+        用户问题:
+        {input}
 
-回答:`,
+        回答:`,
     );
     const combineDocsChain = await createStuffDocumentsChain({
       llm: model,
@@ -116,18 +113,17 @@ export function getAgent() {
 }
 
 /**
- * 使用Agent进行问答
+ * 获取非流式Agent回答
  * @param question 用户问题
- * @returns 回答结果
+ * @returns 解析后的回答结果字符串
  */
-export async function askAgentNoStream(question: string) {
+export async function getNonStreamingAgentResponse(question: string) {
   if (!agent) {
     throw new Error('Agent not initialized');
   }
   console.log(`Question: ${question}`);
   try {
     const result = await agent.invoke({ input: question });
-    // console.log(`Answer: ${JSON.stringify(result)}`);
     // 使用StringOutputParser解析回答
     const parsedAnswer = await stringParser.invoke(result.answer);
     console.log(`Parsed Answer: ${parsedAnswer}`);
@@ -135,40 +131,62 @@ export async function askAgentNoStream(question: string) {
     return parsedAnswer;
   } catch (error) {
     console.error('Failed to ask agent:', error);
-    return {
-      answer: '抱歉，我无法回答这个问题。',
-      sources: [],
-    };
+    return '抱歉，我无法回答这个问题。'
   }
 }
-export async function askAgent(
+/**
+ * 向代理发送问题并获取流式响应结果
+ * @param question - 要询问代理的问题字符串
+ * @returns 返回一个可读流，包含BaseMessageChunk类型的消息块
+ */
+/**
+ * 直接向模型提问并获取流式响应
+ * @param question 用户问题
+ * @returns 模型生成的流式响应
+ */
+export async function streamModelResponse(
   question: string,
 ): Promise<IterableReadableStream<BaseMessageChunk>> {
   if (!agent) {
     throw new Error('Agent not initialized');
   }
   console.log(`Question: ${question}`);
-  // 使用LCEL的stream方法获取流式结果
+  // 直接调用模型的stream方法获取流式结果
   const stream = await model.stream(question);
   console.log('stream:', stream);
   return stream;
 }
 
-export async function askAgent2(question: string) {
-  const promptTemplate =
-    PromptTemplate.fromTemplate('请回答以下问题 {topic}');
+/**
+ * 使用链式模型处理并获取流式响应
+ * @param question 用户问题
+ * @returns 链式处理后的流式响应
+ */
+export async function streamChainedModelResponse(question: string) {
+  // 创建提示词模板，用于格式化问题输入
+  const promptTemplate = PromptTemplate.fromTemplate('请回答以下问题 {topic}');
+
+  // 构建处理链，包含提示词模板、语言模型和字符串输出解析器
   const chain = RunnableSequence.from([
     promptTemplate,
     model,
     new StringOutputParser(),
   ]);
-  // const result = await chain.invoke({ topic: '打工人' });
-  const result = await chain.stream({ topic: question });
 
+  // 执行链式调用并获取流式结果
+  const result = await chain.stream({ topic: question });
   return result;
 }
-export async function askAgent3(question: string) {
-  // 创建提示模板
+/**
+ * 使用RAG技术获取流式增强回答
+ * 该函数使用检索增强生成技术，从向量存储中检索相关上下文信息，
+ * 结合用户问题生成更准确的回答
+ *
+ * @param question 用户提出的问题字符串
+ * @returns 返回一个可读流，包含模型生成的回答结果
+ */
+export async function streamRagEnhancedResponse(question: string) {
+  // 创建提示模板，定义了模型输入的格式和要求
   const promptTemplate = PromptTemplate.fromTemplate(
     `你是一个智能助手，需要根据提供的上下文和用户问题给出准确的回答。
 
@@ -182,11 +200,13 @@ export async function askAgent3(question: string) {
   );
   // 获取向量存储实例
 
+  // 构建上下文检索链，用于从向量存储中检索相关上下文信息
   const contextRetrievalChain = RunnableSequence.from([
     (input) => input.question,
     retriever,
   ]);
 
+  // 构建完整的RAG链，整合上下文检索、提示模板、语言模型和输出解析器
   const ragChain = RunnableSequence.from([
     {
       context: contextRetrievalChain,
@@ -196,7 +216,6 @@ export async function askAgent3(question: string) {
     model,
     new StringOutputParser(),
   ]);
-  // const result = await chain.invoke({ topic: '打工人' });
   const result = await ragChain.stream({ question });
 
   return result;

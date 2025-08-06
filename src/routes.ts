@@ -1,17 +1,21 @@
 // 路由定义
 import { Express, Request, Response } from 'express';
-import { Readable } from 'stream';
-import { askAgent, askAgentNoStream, askAgent2,askAgent3 } from './services/agent';
+import {
+  streamModelResponse,
+  getNonStreamingAgentResponse,
+  streamChainedModelResponse,
+  streamRagEnhancedResponse,
+} from './services/agent';
+
 import { addDocumentsToVectorStore } from './services/vectorStore';
 import { Document } from '@langchain/core/documents';
 import { toUIMessageStream } from '@ai-sdk/langchain';
 import {
+  UIMessage,
   createUIMessageStream,
-  createUIMessageStreamResponse,
   pipeUIMessageStreamToResponse,
 } from 'ai';
 
-// 不再需要ai包的导入
 /**
  * 设置API路由
  * @param app Express应用实例
@@ -26,8 +30,13 @@ export function setupRoutes(app: Express) {
     });
   });
 
-  // 聊天路由 无流式
-  app.post('/api/chat', async (req: Request, res: Response) => {
+  /**
+   * 使用链式模型进行聊天的路由
+   * @route POST /api/chat/chained-model
+   * @param {string} question - 请求体中的问题字符串
+   * @returns {Stream} 流式响应，包含模型生成的回答
+   */
+  app.post('/api/chat/chained-model', async (req: Request, res: Response) => {
     try {
       const { question } = req.body;
 
@@ -37,8 +46,9 @@ export function setupRoutes(app: Express) {
         });
       }
 
-      // const result = await askAgentNoStream(question);
-      const result = await askAgent2(question);
+      // const result = await getNonStreamingAgentResponse(question);
+
+      const result = await streamChainedModelResponse(question);
 
       // 返回完整 JSON 响应
       // res.status(200).json(result);
@@ -58,8 +68,13 @@ export function setupRoutes(app: Express) {
     }
   });
 
-  // 聊天路由
-  app.post('/api/chat3', async (req: Request, res: Response) => {
+  /**
+   * 直接调用模型进行聊天的路由
+   * @route POST /api/chat/direct-model
+   * @param {string} question - 请求体中的问题字符串
+   * @returns {Stream} 流式响应，包含模型生成的回答
+   */
+  app.post('/api/chat/direct-model', async (req: Request, res: Response) => {
     try {
       const { question } = req.body;
 
@@ -68,55 +83,7 @@ export function setupRoutes(app: Express) {
           error: 'Question is required',
         });
       }
-      const stream = await askAgent(question);
-      const uiStreamResponse = createUIMessageStreamResponse({
-        stream: toUIMessageStream(stream),
-      });
-      // 6. 将 createUIMessageStreamResponse 的结果转换为 Express 响应
-      // 关键点：提取流和响应头，通过 Express 的 res 对象返回
-      // 安全地设置响应头，只设置必要的Content-Type
-      res.set('Content-Type', 'text/event-stream');
-      res.set('Cache-Control', 'no-cache');
-      res.set('Connection', 'keep-alive');
-
-      // 将 Web ReadableStream 转换为 Node.js Readable 流
-      if (uiStreamResponse.body) {
-        const reader = uiStreamResponse.body.getReader();
-        const nodeStream = new Readable({
-          async read() {
-            try {
-              const { done, value } = await reader.read();
-              if (done) {
-                this.push(null);
-              } else {
-                this.push(Buffer.from(value));
-              }
-            } catch (error) {
-              this.emit('error', error);
-            }
-          },
-        });
-        nodeStream.pipe(res);
-      }
-    } catch (error) {
-      console.error('Error in chat route:', error);
-      res.status(500).json({
-        error: 'An error occurred while processing your request',
-        details: error instanceof Error ? error.message : String(error),
-      });
-    }
-  });
-  // 聊天路由
-  app.post('/api/chat2', async (req: Request, res: Response) => {
-    try {
-      const { question } = req.body;
-
-      if (!question) {
-        return res.status(400).json({
-          error: 'Question is required',
-        });
-      }
-      const langChainStream = await askAgent(question);
+      const langChainStream = await streamModelResponse(question);
       const uiMessageStream = toUIMessageStream(langChainStream);
 
       // 将UI消息流管道到Express响应
@@ -132,8 +99,13 @@ export function setupRoutes(app: Express) {
       });
     }
   });
-   // 聊天路由
-  app.post('/api/chat4', async (req: Request, res: Response) => {
+  /**
+   * 使用RAG技术增强聊天的路由
+   * @route POST /api/chat/rag
+   * @param {string} question - 请求体中的问题字符串
+   * @returns {Stream} 流式响应，包含基于检索增强的回答
+   */
+  app.post('/api/chat/rag', async (req: Request, res: Response) => {
     try {
       const { question } = req.body;
 
@@ -142,7 +114,8 @@ export function setupRoutes(app: Express) {
           error: 'Question is required',
         });
       }
-      const langChainStream = await askAgent3(question);
+      const langChainStream = await streamRagEnhancedResponse(question);
+
       const uiMessageStream = toUIMessageStream(langChainStream);
 
       // 将UI消息流管道到Express响应
@@ -158,8 +131,38 @@ export function setupRoutes(app: Express) {
       });
     }
   });
-  // 文档上传路由
-  app.post('/api/documents', async (req: Request, res: Response) => {
+
+  /**
+   * 使用非流式Agent回答的路由,前端用普通ajax请求接收，不能使用vercel ai sdk 的 useChat接收
+   * @route POST /api/chat/non-streaming
+   * @param {string} question - 请求体中的问题字符串
+   * @returns {Object} JSON响应，包含非流式的回答结果
+   */
+  app.post('/api/chat/non-streaming', async (req: Request, res: Response) => {
+    const { question } = req.body;
+    const answer = await getNonStreamingAgentResponse(question);
+    // 创建UI消息响应
+    const uiMessage = {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: answer,
+      type: 'text',
+    };
+
+    // 返回非流式响应
+    res.json({
+      success: true,
+      message: uiMessage,
+    });
+  });
+
+  /**
+   * 上传文档到知识库的路由
+   * @route POST /api/knowledge/documents
+   * @param {Array<{content: string, metadata: object}>} documents - 请求体中的文档数组
+   * @returns {Object} 包含上传结果的JSON响应
+   */
+  app.post('/api/knowledge/documents', async (req: Request, res: Response) => {
     try {
       const { documents } = req.body;
 
