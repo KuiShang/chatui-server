@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #chat-container { display: flex; flex-direction: column; height: 500px; border: 1px solid #ccc; border-radius: 5px; overflow: hidden; }
+        #messages { flex: 1; padding: 10px; overflow-y: auto; background-color: #f9f9f9; }
+        .message { margin-bottom: 10px; padding: 10px; border-radius: 5px; }
+        .user-message { background-color: #e3f2fd; align-self: flex-end; }
+        .bot-message { background-color: #f1f1f1; align-self: flex-start; }
+        #input-container { display: flex; padding: 10px; background-color: #fff; border-top: 1px solid #ccc; }
+        #question { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; margin-right: 10px; }
+        button { padding: 10px 20px; background-color: #2196f3; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #0b7dda; }
+    </style>
+</head>
+<body>
+    <h1>Chat Test</h1>
+    <div id="chat-container">
+        <div id="messages"></div>
+        <div id="input-container">
+            <input type="text" id="question" placeholder="输入问题...">
+            <button id="send-btn">发送</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Chat test page loaded');
+            document.getElementById('send-btn').addEventListener('click', sendMessage);
+            document.getElementById('question').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        });
+
+        function sendMessage() {
+            const question = document.getElementById('question').value;
+            if (!question.trim()) return;
+
+            addMessage('user', question);
+            document.getElementById('question').value = '';
+
+            console.log('Sending message:', question);
+
+            fetch('http://localhost:3000/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question })
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Received response:', data);
+                addMessage('bot', data.answer);
+            })
+            .catch(error => {
+                console.error('There was a problem with your fetch operation:', error);
+                addMessage('bot', '抱歉，出现了错误: ' + error.message);
+            });
+        }
+
+        function addMessage(sender, text) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.classList.add(sender + '-message');
+            messageDiv.textContent = text;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
