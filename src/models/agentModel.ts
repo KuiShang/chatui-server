@@ -1,20 +1,20 @@
-// Agent服务
 import { ChatZhipuAI } from '@langchain/community/chat_models/zhipuai';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { Runnable, RunnableSequence } from '@langchain/core/runnables';
 import { BaseMessage, BaseMessageChunk } from '@langchain/core/messages';
 import { Document } from '@langchain/core/documents';
-
-import { getVectorStore, initializeVectorStore } from './vectorStore';
+import { getVectorStore } from '../services/vectorStoreService';
 import { config } from '../config';
 import { createStuffDocumentsChain } from 'langchain/chains/combine_documents';
 import { createRetrievalChain } from 'langchain/chains/retrieval';
 import { IterableReadableStream } from '@langchain/core/utils/stream';
 import { VectorStoreRetriever } from '@langchain/core/vectorstores';
 import { FaissStore } from '@langchain/community/vectorstores/faiss';
-//
-const stringParser = new StringOutputParser();
+import { getLogger } from '../utils/logger';
+
+const logger = getLogger('agentModel');
+
 // 声明agent实例
 let agent: Runnable<
   {
@@ -30,19 +30,13 @@ let agent: Runnable<
 > | null = null;
 let model: ChatZhipuAI;
 let retriever: VectorStoreRetriever<FaissStore>;
+const stringParser = new StringOutputParser();
+
 /**
  * 初始化Agent
  */
 export async function initializeAgent() {
   try {
-    // 创建DeepSeek聊天模型实例
-    // const model = new ChatDeepSeek({
-    //   streaming: true,
-    //   apiKey: config.deepseek.apiKey,
-    //   modelName: config.deepseek.modelName,
-    //   temperature: 0.7,
-    // });
-
     model = new ChatZhipuAI({
       streaming: true,
       model: 'GLM-4-Flash', // Available models:
@@ -50,8 +44,6 @@ export async function initializeAgent() {
       zhipuAIApiKey: config.zhipuai.apiKey, // In Node.js defaults to process.env.ZHIPUAI_API_KEY
     });
 
-    // 初始化向量存储
-    await initializeVectorStore();
     // 获取向量存储实例
     const vectorStore = getVectorStore();
 
@@ -66,7 +58,7 @@ export async function initializeAgent() {
       // 确保k不超过文档数量
       k = Math.min(k, docCount > 0 ? docCount : 1);
     } catch (error) {
-      console.warn('无法获取文档数量，使用默认k值:', k);
+      logger.warn(`无法获取文档数量，使用默认k值: ${k}`);
     }
     retriever = vectorStore.asRetriever({ k });
 
@@ -87,17 +79,15 @@ export async function initializeAgent() {
       prompt: promptTemplate,
     });
     // 创建RAG链
-    // agent = RetrievalQAChain.fromLLM(model, retriever, {
-    //   prompt: promptTemplate,
-    //   returnSourceDocuments: true, // 返回源文档
-    // });
     agent = await createRetrievalChain({
       combineDocsChain,
       retriever,
     });
-    console.log('Agent initialized successfully');
+    logger.info('Agent initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize agent:', error);
+    logger.error(
+      `Failed to initialize agent: ${error instanceof Error ? error.message : String(error)}`,
+    );
     throw error;
   }
 }
@@ -121,24 +111,22 @@ export async function getNonStreamingAgentResponse(question: string) {
   if (!agent) {
     throw new Error('Agent not initialized');
   }
-  console.log(`Question: ${question}`);
+  logger.info(`Question: ${question}`);
   try {
     const result = await agent.invoke({ input: question });
     // 使用StringOutputParser解析回答
     const parsedAnswer = await stringParser.invoke(result.answer);
-    console.log(`Parsed Answer: ${parsedAnswer}`);
+    logger.info(`Parsed Answer: ${parsedAnswer}`);
 
     return parsedAnswer;
   } catch (error) {
-    console.error('Failed to ask agent:', error);
-    return '抱歉，我无法回答这个问题。'
+    logger.error(
+      `Failed to ask agent: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return '抱歉，我无法回答这个问题。';
   }
 }
-/**
- * 向代理发送问题并获取流式响应结果
- * @param question - 要询问代理的问题字符串
- * @returns 返回一个可读流，包含BaseMessageChunk类型的消息块
- */
+
 /**
  * 直接向模型提问并获取流式响应
  * @param question 用户问题
@@ -150,10 +138,9 @@ export async function streamModelResponse(
   if (!agent) {
     throw new Error('Agent not initialized');
   }
-  console.log(`Question: ${question}`);
+  logger.info(`Question: ${question}`);
   // 直接调用模型的stream方法获取流式结果
   const stream = await model.stream(question);
-  console.log('stream:', stream);
   return stream;
 }
 
@@ -177,6 +164,7 @@ export async function streamChainedModelResponse(question: string) {
   const result = await chain.stream({ topic: question });
   return result;
 }
+
 /**
  * 使用RAG技术获取流式增强回答
  * 该函数使用检索增强生成技术，从向量存储中检索相关上下文信息，
@@ -198,7 +186,6 @@ export async function streamRagEnhancedResponse(question: string) {
 
       回答:`,
   );
-  // 获取向量存储实例
 
   // 构建上下文检索链，用于从向量存储中检索相关上下文信息
   const contextRetrievalChain = RunnableSequence.from([

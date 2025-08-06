@@ -5,6 +5,7 @@ dotenv.config();
 
 export const config = {
   port: process.env.PORT || 3000,
+  logLevel: process.env.LOG_LEVEL || 'info',
   deepseek: {
     apiKey: process.env.DEEPSEEK_API_KEY || '',
     modelName: 'deepseek-chat',

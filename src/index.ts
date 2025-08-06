@@ -4,8 +4,11 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { config } from './config';
 import { setupRoutes } from './routes';
-import { initializeVectorStore } from './services/vectorStore';
-import { initializeAgent } from './services/agent';
+import { initializeVectorStore } from './services/vectorStoreService';
+import { initializeAgent } from './services/agentService';
+import { getLogger } from './utils/logger';
+
+const logger = getLogger('index');
 
 async function startServer() {
   const app = express();
@@ -30,10 +33,10 @@ async function startServer() {
   // 启动服务器
   const PORT = config.port || 3000;
   server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    logger.info(`Server is running on port ${PORT}`);
   });
 }
 
 startServer().catch((error) => {
-  console.error('Failed to start server:', error);
+  logger.error(`Failed to start server: ${error.message}`);
 });
