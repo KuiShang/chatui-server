@@ -47,8 +47,18 @@ npm start
 - src/index.ts: 应用入口
 - src/config.ts: 配置文件
 - src/routes.ts: 路由定义
-- src/services/vectorStore.ts: 向量存储服务
-- src/services/agent.ts: AI agent服务
+- src/controllers/: 控制器层，处理HTTP请求
+  - chatController.ts: 聊天相关接口
+  - documentsController.ts: 文档管理接口
+- src/models/: 数据模型层
+  - agentModel.ts: AI agent模型
+- src/services/: 服务层
+  - agentService.ts: AI agent服务
+  - vectorStoreService.ts: 向量存储服务
+- src/utils/: 工具函数
+  - commonUtils.ts: 通用工具函数
+  - documentLoader.ts: 文档加载工具类
+  - logger.ts: 日志工具
 
 ## 注意事项
 1. 确保安装了所有依赖

@@ -10,6 +10,10 @@ export const config = {
     apiKey: process.env.DEEPSEEK_API_KEY || '',
     modelName: 'deepseek-chat',
   },
+  serpapi: {
+    apiKey: process.env.SERPAPI_API_KEY || '',
+  },
+
   zhipuai: {
     apiKey: process.env.ZHIPUAI_API_KEY || '',
   },

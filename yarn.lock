@@ -34,6 +34,11 @@
   dependencies:
     json-schema "^0.4.0"
 
+"@cfworker/json-schema@^4.0.2":
+  version "4.1.1"
+  resolved "https://registry.npmmirror.com/@cfworker/json-schema/-/json-schema-4.1.1.tgz#4a2a3947ee9fa7b7c24be981422831b8674c3be6"
+  integrity sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==
+
 "@colors/colors@1.6.0", "@colors/colors@^1.6.0":
   version "1.6.0"
   resolved "https://registry.npmmirror.com/@colors/colors/-/colors-1.6.0.tgz#ec6cd237440700bc23ca23087f513c75508958b0"
@@ -211,7 +216,25 @@
     uuid "^10.0.0"
     zod "^3.25.32"
 
-"@langchain/core@^0.1.40", "@langchain/core@~0.1.45":
+"@langchain/core@^0.3.68":
+  version "0.3.68"
+  resolved "https://registry.npmmirror.com/@langchain/core/-/core-0.3.68.tgz#0ec59d02757612dfc8fe9739a9ff133afa770c10"
+  integrity sha512-dWPT1h9ObG1TK9uivFTk/pgBULZ6/tBmq8czGUjZjR+1xh9jB4tm/D5FY6o5FklXcEpnAI9peNq2x17Kl9wbMg==
+  dependencies:
+    "@cfworker/json-schema" "^4.0.2"
+    ansi-styles "^5.0.0"
+    camelcase "6"
+    decamelize "1.2.0"
+    js-tiktoken "^1.0.12"
+    langsmith "^0.3.46"
+    mustache "^4.2.0"
+    p-queue "^6.6.2"
+    p-retry "4"
+    uuid "^10.0.0"
+    zod "^3.25.32"
+    zod-to-json-schema "^3.22.3"
+
+"@langchain/core@~0.1.45":
   version "0.1.63"
   resolved "https://registry.npmmirror.com/@langchain/core/-/core-0.1.63.tgz#33cc48877739e9fdb5885fbd4b16fd08d1597050"
   integrity sha512-+fjyYi8wy6x1P+Ee1RWfIIEyxd9Ee9jksEwvrggPwwI/p45kIDTdYTblXsM13y4mNWTiACyLSdbwnPaxxdoz+w==
@@ -1914,6 +1937,19 @@ langsmith@^0.3.33:
   version "0.3.50"
   resolved "https://registry.npmmirror.com/langsmith/-/langsmith-0.3.50.tgz#bbed0e934f0c91394a485b64e7b3c50abd86fae3"
   integrity sha512-yosW6sR0EFnMnYKKyBmcqTNknDVOs+dUfcswWk80JoRxox6WEyel7hmSkSzabP/GmTs0hXbrtc+lZwpJWSnI0w==
+  dependencies:
+    "@types/uuid" "^10.0.0"
+    chalk "^4.1.2"
+    console-table-printer "^2.12.1"
+    p-queue "^6.6.2"
+    p-retry "4"
+    semver "^7.6.3"
+    uuid "^10.0.0"
+
+langsmith@^0.3.46:
+  version "0.3.55"
+  resolved "https://registry.npmmirror.com/langsmith/-/langsmith-0.3.55.tgz#fc0ba0b73cae6f6b461668bdddffb737bb9cc889"
+  integrity sha512-YC/e6lUIYSkheOq9PR6O4CV6GOhYHyPvF2w0SOk85Mw4P5ae/oFdjuFsv7BCjKhPs4vFWC6Fz/qxPTz9mXNhVw==
   dependencies:
     "@types/uuid" "^10.0.0"
     chalk "^4.1.2"

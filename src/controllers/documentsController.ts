@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { addDocumentsToVectorStore } from '../services/vectorStoreService';
-import { Document } from '@langchain/core/documents';
 import { sendErrorResponse, validateRequestParams } from '../utils/commonUtils';
 import { getLogger } from '../utils/logger';
+import { DocumentLoader } from '../utils/documentLoader';
 
 const logger = getLogger('documentsController');
 
@@ -38,41 +38,27 @@ export async function handleUploadDocuments(req: Request, res: Response) {
 
     // 处理不同类型的文档
     const processedDocs = [];
-    // for (const doc of documents) {
-    //   const { type, content, metadata } = doc;
-    //   let loader;
+    try {
+      // 使用DocumentLoader批量加载文档
+      const docsToLoad = documents.map(doc => ({
+        type: doc.type,
+        content: doc.content,
+        metadata: doc.metadata || {}
+      }));
 
-    //   switch (type) {
-    //     case 'pdf':
-    //       // 处理PDF文档
-    //       loader = new PDFLoader(content);
-    //       break;
-    //     case 'text':
-    //       // 处理文本文档
-    //       loader = new TextLoader(content);
-    //       break;
-    //     case 'docx':
-    //       // 处理DOCX文档
-    //       loader = new DocxLoader(content);
-    //       break;
-    //     case 'csv':
-    //       // 处理CSV文档
-    //       loader = new CSVLoader(content);
-    //       break;
-    //     default:
-    //       return sendErrorResponse(
-    //         res,
-    //         400,
-    //         `Unsupported document type: ${type}`,
-    //       );
-    //   }
+      const loadedDocs = await DocumentLoader.batchLoadDocuments(docsToLoad);
+      processedDocs.push(...loadedDocs);
 
-    //   const loadedDocs = await loader.load();
-    //   processedDocs.push(...loadedDocs);
-    // }
-
-    // // 将处理后的文档添加到向量存储
-    // await addDocumentsToVectorStore(processedDocs);
+      // 将处理后的文档添加到向量存储
+      // await addDocumentsToVectorStore(processedDocs);
+    } catch (error) {
+      return sendErrorResponse(
+        res,
+        400,
+        'Failed to process documents',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
 
     return res.status(200).json({
       success: true,
