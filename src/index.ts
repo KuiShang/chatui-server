@@ -5,12 +5,18 @@ import { createServer } from 'http';
 import { config } from './config';
 import { setupRoutes } from './routes';
 import { initializeVectorStore } from './services/vectorStoreService';
-import { initializeAgent } from './services/agentService';
 import { getLogger } from './utils/logger';
 
 const logger = getLogger('index');
 
 async function startServer() {
+  // 配置LangChain跟踪 - 放在应用启动最早期阶段
+  process.env.LANGCHAIN_TRACING_V2 = process.env.LANGCHAIN_TRACING_V2 || 'true';
+  process.env.LANGSMITH_TRACING = process.env.LANGSMITH_TRACING || 'true';
+  process.env.LANGSMITH_ENDPOINT = process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com';
+  process.env.LANGSMITH_API_KEY = process.env.LANGSMITH_API_KEY;
+  process.env.LANGSMITH_PROJECT = process.env.LANGSMITH_PROJECT || 'chat-server';
+
   const app = express();
   const server = createServer(app);
 
@@ -25,7 +31,9 @@ async function startServer() {
 
   // 初始化服务
   await initializeVectorStore();
-  await initializeAgent();
+
+
+
 
   // 设置路由
   setupRoutes(app);

@@ -6,11 +6,10 @@ import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatZhipuAI } from '@langchain/community/chat_models/zhipuai';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { config } from '../config';
-
 const logger = getLogger('chatService');
-
+import { SequentialChain} from 'langchain/chains';
 // 提取提示模板为常量
-const RAG_PROMPT_TEMPLATE = `你是一个智能助手，需要根据提供的上下文和用户问题给出准确的回答。
+const RAG_PROMPT_TEMPLATE = `你是一个智能助手，需要根据提供的上下文和用户问题给出准确的回答。必须严格基于提供的文档回答，不能添加外部信息
 
   上下文信息:
   {context}
