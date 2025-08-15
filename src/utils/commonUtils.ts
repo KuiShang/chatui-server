@@ -1,4 +1,9 @@
 import { Response } from 'express';
+import fs from 'fs';
+import { getLogger } from './logger';
+
+const logger = getLogger('commonUtils');
+
 
 /**
  * 处理成功响应
@@ -52,4 +57,25 @@ export function validateRequestParams(
     isValid: missingFields.length === 0,
     missingFields,
   };
+}
+
+/**
+ * 清理临时文件
+ * @param filePaths 要清理的文件路径数组
+ */
+export function cleanupTempFiles(filePaths: string[]): void {
+  filePaths.forEach((filePath) => {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        logger.info(`临时文件已删除: ${filePath}`);
+      } else {
+        logger.warn(`临时文件不存在: ${filePath}`);
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to delete temporary file: ${filePath}. Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  });
 }

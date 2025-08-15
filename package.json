@@ -20,11 +20,13 @@
     "@langchain/deepseek": "^0.1.0",
     "@langchain/openai": "^0.0.22",
     "@types/cors": "^2.8.19",
+    "@types/multer": "^2.0.0",
     "ai": "^5.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^4.19.2",
     "faiss-node": "^0.5.1",
+    "multer": "^2.0.2",
     "winston": "^3.17.0",
     "zhipuai": "^1.0.7",
     "zod": "^4.0.14"

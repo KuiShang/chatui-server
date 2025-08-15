@@ -5,7 +5,7 @@ import {
   getNonStreamingAgentResponse,
   streamModelResponse,
   streamChainedModelResponse,
-  streamRagEnhancedResponse,
+  
 } from '../models/agentModel';
 
 export {
@@ -14,7 +14,7 @@ export {
   getNonStreamingAgentResponse,
   streamModelResponse,
   streamChainedModelResponse,
-  streamRagEnhancedResponse,
+
 };
 
 // 为了向后兼容保留旧的导入路径

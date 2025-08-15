@@ -1,6 +1,4 @@
 import { ChatZhipuAI } from '@langchain/community/chat_models/zhipuai';
-import { StringOutputParser } from '@langchain/core/output_parsers';
-import { PromptTemplate } from '@langchain/core/prompts';
 import { Runnable, RunnableSequence } from '@langchain/core/runnables';
 import { BaseMessage, BaseMessageChunk } from '@langchain/core/messages';
 import { Document } from '@langchain/core/documents';
@@ -12,6 +10,8 @@ import { IterableReadableStream } from '@langchain/core/utils/stream';
 import { VectorStoreRetriever } from '@langchain/core/vectorstores';
 import { FaissStore } from '@langchain/community/vectorstores/faiss';
 import { getLogger } from '../utils/logger';
+import { PromptTemplate } from '@langchain/core/prompts';
+import { StringOutputParser } from '@langchain/core/output_parsers';
 
 const logger = getLogger('agentModel');
 
@@ -29,7 +29,6 @@ let agent: Runnable<
   }
 > | null = null;
 let model: ChatZhipuAI;
-let retriever: VectorStoreRetriever<FaissStore>;
 const stringParser = new StringOutputParser();
 
 /**
@@ -60,7 +59,7 @@ export async function initializeAgent() {
     } catch (error) {
       logger.warn(`无法获取文档数量，使用默认k值: ${k}`);
     }
-    retriever = vectorStore.asRetriever({ k });
+    const retriever = vectorStore.asRetriever({ k });
 
     // 创建提示模板
     const promptTemplate = PromptTemplate.fromTemplate(
@@ -165,45 +164,6 @@ export async function streamChainedModelResponse(question: string) {
   return result;
 }
 
-/**
- * 使用RAG技术获取流式增强回答
- * 该函数使用检索增强生成技术，从向量存储中检索相关上下文信息，
- * 结合用户问题生成更准确的回答
- *
- * @param question 用户提出的问题字符串
- * @returns 返回一个可读流，包含模型生成的回答结果
- */
-export async function streamRagEnhancedResponse(question: string) {
-  // 创建提示模板，定义了模型输入的格式和要求
-  const promptTemplate = PromptTemplate.fromTemplate(
-    `你是一个智能助手，需要根据提供的上下文和用户问题给出准确的回答。
 
-      上下文信息:
-      {context}
 
-      用户问题:
-      {input}
 
-      回答:`,
-  );
-
-  // 构建上下文检索链，用于从向量存储中检索相关上下文信息
-  const contextRetrievalChain = RunnableSequence.from([
-    (input) => input.question,
-    retriever,
-  ]);
-
-  // 构建完整的RAG链，整合上下文检索、提示模板、语言模型和输出解析器
-  const ragChain = RunnableSequence.from([
-    {
-      context: contextRetrievalChain,
-      input: (input) => input.question,
-    },
-    promptTemplate,
-    model,
-    new StringOutputParser(),
-  ]);
-  const result = await ragChain.stream({ question });
-
-  return result;
-}

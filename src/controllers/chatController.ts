@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
-import { streamChainedModelResponse, streamModelResponse, streamRagEnhancedResponse, getNonStreamingAgentResponse } from '../services/agentService';
+import { streamChainedModelResponse, streamModelResponse, getNonStreamingAgentResponse } from '../services/agentService';
 import { toUIMessageStream } from '@ai-sdk/langchain';
 import { pipeUIMessageStreamToResponse } from 'ai';
 import { sendErrorResponse, validateRequestParams } from '../utils/commonUtils';
 import { getLogger } from '../utils/logger';
+import { PromptTemplate } from '@langchain/core/prompts';
+import { streamRagEnhancedResponse } from '../services/chatService';
 
 const logger = getLogger('chatController');
 
@@ -120,7 +122,7 @@ export async function handleRagEnhancedChat(req: Request, res: Response) {
     );
   }
 }
-
+ 
 /**
  * 处理非流式Agent聊天请求
  * @param req Express请求对象

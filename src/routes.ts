@@ -1,7 +1,8 @@
 // 路由定义
-import { Express, Request, Response } from 'express';
+import { Express, Request, Response, RequestHandler } from 'express';
 import { handleChainedModelChat, handleDirectModelChat, handleRagEnhancedChat, handleNonStreamingChat } from './controllers/chatController';
 import { handleUploadDocuments } from './controllers/documentsController';
+import upload from './middlewares/uploadMiddleware';
 
 /**
  * 设置API路由
@@ -55,5 +56,11 @@ export function setupRoutes(app: Express) {
    * @param {Array<{content: string, metadata: object}>} documents - 请求体中的文档数组
    * @returns {Object} 包含上传结果的JSON响应
    */
-  app.post('/api/knowledge/documents', handleUploadDocuments);
+  /**
+   * 上传文档到知识库的路由
+   * @route POST /api/knowledge/documents
+   * @param {File[]} documents - FormData中的文件数组
+   * @returns {Object} 包含上传结果的JSON响应
+   */
+  app.post('/api/knowledge/documents', upload.array('documents') as unknown as RequestHandler, handleUploadDocuments as RequestHandler);
 }
