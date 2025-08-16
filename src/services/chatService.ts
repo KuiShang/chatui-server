@@ -3,21 +3,14 @@ import { DocumentInterface } from '@langchain/core/documents';
 import { getLogger } from '../utils/logger';
 import {
   RunnableSequence,
-  RunnablePassthrough,
   RunnableBranch,
   RunnableLambda,
 } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatZhipuAI } from '@langchain/community/chat_models/zhipuai';
-import { PromptTemplate, ChatPromptTemplate } from '@langchain/core/prompts';
+import { PromptTemplate } from '@langchain/core/prompts';
 import { config } from '../config';
-import { RouterOutputParser } from 'langchain/output_parsers';
-import { LLMRouterChain, LLMChain, MultiRouteChain } from 'langchain/chains';
 const logger = getLogger('chatService');
-import { zodToJsonSchema } from 'zod-to-json-schema';
-
-import { SequentialChain } from 'langchain/chains';
-import { z } from 'zod';
 // 提取提示模板为常量
 const RAG_PROMPT_TEMPLATE = `你是一个智能助手，需要根据提供的上下文和用户问题给出准确的回答。必须严格基于提供的文档回答，不能添加外部信息
 
@@ -43,10 +36,32 @@ const ADJUST_QUERY_TEMPLATE = `
   仅返回新的检索词，不要其他内容。
 `;
 
+const TOPIC_CLASSIFICATION_TEMPLATE = `任务：判断用户问题是否与特定主题相关
+
+判断标准：
+如果问题涉及以下任何主题，请回答"rag"：
+- 集成相关：集成、集成技术、数据集成、组织机构集成、材料字典集成、机械字典集成、模板字典集成、自定义转换
+- 日志相关：流水日志、运行日志、运行记录
+- 数据相关：数据范围
+- 文学相关：球状闪电小说
+
+如果问题与上述所有主题无关，请回答"default"。
+
+输出要求：
+请严格只返回"rag"或"default"，不要包含任何其他文字、标点或解释。
+
+用户问题：{question}`;
+
+const DEFAULT_PROMPT_TEMPLATE = `你是一个智能助手，请根据以下问题提供准确、简洁的回答。
+
+问题: {question}
+
+回答:`;
+
 // 创建共享的语言模型实例
 const createZhipuAIModel = () =>
   new ChatZhipuAI({
-    streaming: false,
+    streaming: true,
     model: 'GLM-4-Flash',
     temperature: 0,
     zhipuAIApiKey: config.zhipuai.apiKey,
@@ -65,7 +80,7 @@ const zhipuAIModel = createZhipuAIModel();
  * @param retrievalCount 检索文档数量（默认2个）
  * @returns 返回一个可读流，包含模型生成的回答结果
  */
-export async function streamRagEnhancedResponse(
+export async function createRagEnhancedChain(
   question: string,
   maxRetries: number = 2,
   minScore: number = 7,
@@ -119,16 +134,10 @@ export async function streamRagEnhancedResponse(
     },
     promptTemplate,
     // 对于流式输出，这里应该使用streaming: true
-    new ChatZhipuAI({
-      streaming: true,
-      model: 'GLM-4-Flash',
-      temperature: 0,
-      zhipuAIApiKey: config.zhipuai.apiKey,
-    }),
+   zhipuAIModel,
     new StringOutputParser(),
   ]);
 
-  // const result = await ragChain.stream({ question });
   return ragChain;
 }
 /**
@@ -142,7 +151,8 @@ export async function streamRagEnhancedResponse(
 const evaluateRetrievalQuality = async (
   query: string,
   documents: DocumentInterface<Record<string, any>>[],
-) => {
+): Promise<number> => {
+
   try {
     const qualityPrompt = PromptTemplate.fromTemplate(QUALITY_PROMPT_TEMPLATE);
 
@@ -176,7 +186,7 @@ const evaluateRetrievalQuality = async (
 const adjustQuery = async (
   originalQuery: string,
   poorDocuments: DocumentInterface<Record<string, any>>[],
-) => {
+): Promise<string> => {
   try {
     const prompt = PromptTemplate.fromTemplate(ADJUST_QUERY_TEMPLATE);
 
@@ -198,7 +208,7 @@ const adjustQuery = async (
     return originalQuery; // 出错时返回原始查询词
   }
 };
-const promptTemplate = PromptTemplate.fromTemplate('请回答以下问题 {question}');
+const promptTemplate = PromptTemplate.fromTemplate(DEFAULT_PROMPT_TEMPLATE);
 // 构建处理链，包含提示词模板、语言模型和字符串输出解析器
 const defaultChain = RunnableSequence.from([
   promptTemplate,
@@ -228,18 +238,16 @@ export async function routeChatRequest(question: string) {
       (x: { topic: string; question: string }) =>
         x.topic.toLowerCase().includes('rag'),
       RunnableLambda.from(() => {
-        console.log('RAG 模式');
-        return streamRagEnhancedResponse(question);
+        logger.info('RAG 模式');
+        return createRagEnhancedChain(question);
       }),
     ],
     RunnableLambda.from(() => {
-      console.log('默认模式');
+      logger.info('默认模式');
       return defaultChain;
     }),
   ]);
-  const promptTemplate = PromptTemplate.fromTemplate(
-    '请判断以下问题是否与"集成"或"球状闪电"相关，只需回答"rag"或"default"，不要返回其他任何内容。问题：{question}',
-  );
+  const promptTemplate = PromptTemplate.fromTemplate(TOPIC_CLASSIFICATION_TEMPLATE);
 
   const classificationChain = RunnableSequence.from([
     promptTemplate,

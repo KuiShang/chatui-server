@@ -5,7 +5,7 @@ import { pipeUIMessageStreamToResponse } from 'ai';
 import { sendErrorResponse, validateRequestParams } from '../utils/commonUtils';
 import { getLogger } from '../utils/logger';
 import { PromptTemplate } from '@langchain/core/prompts';
-import { streamRagEnhancedResponse, streamChainedModelResponse, routeChatRequest } from '../services/chatService';
+import { createRagEnhancedChain, streamChainedModelResponse, routeChatRequest } from '../services/chatService';
 
 const logger = getLogger('chatController');
 
@@ -143,7 +143,7 @@ export async function handleRagEnhancedChat(req: Request, res: Response) {
       );
     }
 
-    const langChainStream = await streamRagEnhancedResponse(question);
+    const langChainStream = await createRagEnhancedChain(question);
     const uiMessageStream = toUIMessageStream(langChainStream as any);
 
     // 将UI消息流管道到Express响应
