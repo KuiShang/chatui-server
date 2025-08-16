@@ -1,13 +1,23 @@
 import { getVectorStore } from './vectorStoreService';
 import { DocumentInterface } from '@langchain/core/documents';
 import { getLogger } from '../utils/logger';
-import { RunnableSequence } from '@langchain/core/runnables';
+import {
+  RunnableSequence,
+  RunnablePassthrough,
+  RunnableBranch,
+  RunnableLambda,
+} from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatZhipuAI } from '@langchain/community/chat_models/zhipuai';
-import { PromptTemplate } from '@langchain/core/prompts';
+import { PromptTemplate, ChatPromptTemplate } from '@langchain/core/prompts';
 import { config } from '../config';
+import { RouterOutputParser } from 'langchain/output_parsers';
+import { LLMRouterChain, LLMChain, MultiRouteChain } from 'langchain/chains';
 const logger = getLogger('chatService');
-import { SequentialChain} from 'langchain/chains';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+
+import { SequentialChain } from 'langchain/chains';
+import { z } from 'zod';
 // 提取提示模板为常量
 const RAG_PROMPT_TEMPLATE = `你是一个智能助手，需要根据提供的上下文和用户问题给出准确的回答。必须严格基于提供的文档回答，不能添加外部信息
 
@@ -34,12 +44,13 @@ const ADJUST_QUERY_TEMPLATE = `
 `;
 
 // 创建共享的语言模型实例
-const createZhipuAIModel = () => new ChatZhipuAI({
-  streaming: false,
-  model: 'GLM-4-Flash',
-  temperature: 0,
-  zhipuAIApiKey: config.zhipuai.apiKey,
-});
+const createZhipuAIModel = () =>
+  new ChatZhipuAI({
+    streaming: false,
+    model: 'GLM-4-Flash',
+    temperature: 0,
+    zhipuAIApiKey: config.zhipuai.apiKey,
+  });
 
 const zhipuAIModel = createZhipuAIModel();
 
@@ -80,7 +91,9 @@ export async function streamRagEnhancedResponse(
       logger.info(`重新检索，新的检索词: ${question}`);
       retries++;
     } catch (error) {
-      logger.error(`检索过程中发生错误: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `检索过程中发生错误: ${error instanceof Error ? error.message : String(error)}`,
+      );
       retries++;
       // 如果达到最大重试次数仍失败，则继续执行，使用原始问题
       if (retries > maxRetries) {
@@ -115,10 +128,9 @@ export async function streamRagEnhancedResponse(
     new StringOutputParser(),
   ]);
 
-  const result = await ragChain.stream({ question });
-  return result;
+  // const result = await ragChain.stream({ question });
+  return ragChain;
 }
-
 /**
  * 评估检索文档质量的函数
  * 该函数使用大语言模型来评估检索到的文档与查询问题的相关性，并返回一个0-10的相关性分数
@@ -148,7 +160,9 @@ const evaluateRetrievalQuality = async (
     const score = parseInt(scoreText);
     return isNaN(score) ? 0 : Math.max(0, Math.min(10, score)); // 确保分数在0-10范围内
   } catch (error) {
-    logger.error(`评估检索质量时发生错误: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(
+      `评估检索质量时发生错误: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return 0;
   }
 };
@@ -178,7 +192,68 @@ const adjustQuery = async (
 
     return result.content.toString().trim() || originalQuery;
   } catch (error) {
-    logger.error(`调整查询词时发生错误: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(
+      `调整查询词时发生错误: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return originalQuery; // 出错时返回原始查询词
   }
 };
+const promptTemplate = PromptTemplate.fromTemplate('请回答以下问题 {question}');
+// 构建处理链，包含提示词模板、语言模型和字符串输出解析器
+const defaultChain = RunnableSequence.from([
+  promptTemplate,
+  zhipuAIModel,
+  new StringOutputParser(),
+]);
+
+/**
+ * 使用链式模型处理并获取流式响应
+ * @param question 用户问题
+ * @returns 链式处理后的流式响应
+ */
+export async function streamChainedModelResponse(question: string) {
+  const result = await defaultChain.stream({ question });
+
+  return result;
+}
+
+/**
+ * 路由聊天请求到适当的处理函数
+ * @param question 用户问题
+ * @returns ReadableStream<string> 包含回答的可读流
+ */
+export async function routeChatRequest(question: string) {
+  const branch = RunnableBranch.from([
+    [
+      (x: { topic: string; question: string }) =>
+        x.topic.toLowerCase().includes('rag'),
+      RunnableLambda.from(() => {
+        console.log('RAG 模式');
+        return streamRagEnhancedResponse(question);
+      }),
+    ],
+    RunnableLambda.from(() => {
+      console.log('默认模式');
+      return defaultChain;
+    }),
+  ]);
+  const promptTemplate = PromptTemplate.fromTemplate(
+    '请判断以下问题是否与"集成"或"球状闪电"相关，只需回答"rag"或"default"，不要返回其他任何内容。问题：{question}',
+  );
+
+  const classificationChain = RunnableSequence.from([
+    promptTemplate,
+    zhipuAIModel,
+    new StringOutputParser(),
+  ]);
+
+  const fullChain = RunnableSequence.from([
+    {
+      topic: classificationChain,
+      question: (input: { question: string }) => input.question,
+    },
+    branch,
+  ]);
+  const result = await fullChain.stream({ question });
+  return result;
+}

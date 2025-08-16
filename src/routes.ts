@@ -1,6 +1,6 @@
 // 路由定义
 import { Express, Request, Response, RequestHandler } from 'express';
-import { handleChainedModelChat, handleDirectModelChat, handleRagEnhancedChat, handleNonStreamingChat } from './controllers/chatController';
+import { handleChainedModelChat, handleDirectModelChat, handleRoutedChat, handleNonStreamingChat } from './controllers/chatController';
 import { handleUploadDocuments } from './controllers/documentsController';
 import upload from './middlewares/uploadMiddleware';
 
@@ -40,7 +40,7 @@ export function setupRoutes(app: Express) {
    * @param {string} question - 请求体中的问题字符串
    * @returns {Stream} 流式响应，包含基于检索增强的回答
    */
-  app.post('/api/chat/rag', handleRagEnhancedChat);
+  app.post('/api/chat/rag', handleRoutedChat);
 
   /**
    * 使用非流式Agent回答的路由

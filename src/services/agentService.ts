@@ -4,7 +4,7 @@ import {
   getAgent,
   getNonStreamingAgentResponse,
   streamModelResponse,
-  streamChainedModelResponse,
+
   
 } from '../models/agentModel';
 
@@ -13,7 +13,7 @@ export {
   getAgent,
   getNonStreamingAgentResponse,
   streamModelResponse,
-  streamChainedModelResponse,
+
 
 };
 

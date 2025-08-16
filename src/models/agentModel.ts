@@ -143,27 +143,6 @@ export async function streamModelResponse(
   return stream;
 }
 
-/**
- * 使用链式模型处理并获取流式响应
- * @param question 用户问题
- * @returns 链式处理后的流式响应
- */
-export async function streamChainedModelResponse(question: string) {
-  // 创建提示词模板，用于格式化问题输入
-  const promptTemplate = PromptTemplate.fromTemplate('请回答以下问题 {topic}');
-
-  // 构建处理链，包含提示词模板、语言模型和字符串输出解析器
-  const chain = RunnableSequence.from([
-    promptTemplate,
-    model,
-    new StringOutputParser(),
-  ]);
-
-  // 执行链式调用并获取流式结果
-  const result = await chain.stream({ topic: question });
-  return result;
-}
-
 
 
 

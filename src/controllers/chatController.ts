@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
-import { streamChainedModelResponse, streamModelResponse, getNonStreamingAgentResponse } from '../services/agentService';
+import {  streamModelResponse, getNonStreamingAgentResponse } from '../services/agentService';
 import { toUIMessageStream } from '@ai-sdk/langchain';
 import { pipeUIMessageStreamToResponse } from 'ai';
 import { sendErrorResponse, validateRequestParams } from '../utils/commonUtils';
 import { getLogger } from '../utils/logger';
 import { PromptTemplate } from '@langchain/core/prompts';
-import { streamRagEnhancedResponse } from '../services/chatService';
+import { streamRagEnhancedResponse, streamChainedModelResponse, routeChatRequest } from '../services/chatService';
 
 const logger = getLogger('chatController');
 
@@ -86,6 +86,45 @@ export async function handleDirectModelChat(req: Request, res: Response) {
 }
 
 /**
+ * 处理路由后的聊天请求
+ * @param req Express请求对象
+ * @param res Express响应对象
+ */
+export async function handleRoutedChat(req: Request, res: Response) {
+  try {
+    const { question } = req.body;
+
+    // 验证请求参数
+    const { isValid, missingFields } = validateRequestParams(req.body, ['question']);
+    if (!isValid) {
+      return sendErrorResponse(
+        res,
+        400,
+        `Missing required fields: ${missingFields.join(', ')}`
+      );
+    }
+
+    // 使用路由函数处理请求
+    const langChainStream = await routeChatRequest(question);
+    const uiMessageStream = toUIMessageStream(langChainStream);
+
+    // 将UI消息流管道到Express响应
+    pipeUIMessageStreamToResponse({
+      response: res,
+      stream: uiMessageStream,
+    });
+  } catch (error) {
+    logger.error(`Error in routed chat: ${error instanceof Error ? error.message : String(error)}`);
+    return sendErrorResponse(
+      res,
+      500,
+      'An error occurred while processing your request',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+/**
  * 处理RAG增强聊天请求
  * @param req Express请求对象
  * @param res Express响应对象
@@ -105,7 +144,7 @@ export async function handleRagEnhancedChat(req: Request, res: Response) {
     }
 
     const langChainStream = await streamRagEnhancedResponse(question);
-    const uiMessageStream = toUIMessageStream(langChainStream);
+    const uiMessageStream = toUIMessageStream(langChainStream as any);
 
     // 将UI消息流管道到Express响应
     pipeUIMessageStreamToResponse({
